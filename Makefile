@@ -1,18 +1,17 @@
 # Makefile for vtrace
 
-BINARY_NAME := vtrace
 DIST_DIR := dist
-MAIN_PKG := ./cmd/vtrace
 
 .PHONY: all build clean
 
-# Builds the binary into dist folder.
+# Builds all binaries into dist folder.
 all: build
 
-# Compiles the Go binary and outputs to dist folder.
+# Compiles all Go binaries and outputs to dist folder.
 build:
 	@mkdir -p $(DIST_DIR)
-	go build -o $(DIST_DIR)/$(BINARY_NAME) $(MAIN_PKG)
+	go build -o $(DIST_DIR)/vtrace ./cmd/vtrace
+	go build -o $(DIST_DIR)/atrace ./cmd/atrace
 
 # Removes the dist folder.
 clean:

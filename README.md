@@ -8,6 +8,8 @@ manifest delivery, segment fetching, or video decoding.
 
 - Microsecond-accurate network timing via `httptrace`
 - DNS, TCP, TLS, and TTFB breakdown
+- HTTP/1.1-2 vs HTTP/3 TTFF comparison mode
+- QUIC handshake timing for HTTP/3
 - HLS manifest parsing (master and media playlists)
 - First frame detection via ffprobe
 - Multi-sample mode with statistical analysis (mean, median, min, max, stddev)
@@ -68,6 +70,7 @@ vtrace -url <HLS_URL> [flags]
 | `--delay` | `-d` | Fixed delay between samples | 5s |
 | `--delay-random` | | Randomized delay range (e.g., 2s-8s) | - |
 | `--exclude-outliers` | | Exclude outliers from average calculation | false |
+| `--compare` | | Compare HTTP/1.1-2 vs HTTP/3 TTFF timings | false |
 
 ### Examples
 
@@ -94,6 +97,16 @@ vtrace -u https://example.com/stream.m3u8 -n 10 --exclude-outliers
 Custom timeout with verbose output:
 ```bash
 vtrace -u https://example.com/stream.m3u8 -t 60s -v
+```
+
+Compare HTTP/1.1-2 vs HTTP/3 performance:
+```bash
+vtrace -u https://example.com/stream.m3u8 --compare
+```
+
+Multi-sample comparison:
+```bash
+vtrace -u https://example.com/stream.m3u8 --compare -n 5
 ```
 
 ## Sample Output
@@ -132,6 +145,24 @@ Total TTFF:           361.81ms      340.12ms      392.45ms      359.36ms       1
 Outliers detected: sample 3 (392.45ms, +8.5%)
 ```
 
+### HTTP/1.1-2 vs HTTP/3 Comparison
+
+```
+vtrace TTFF comparison for: https://example.com/stream.m3u8
+────────────────────────────────────────────────────────────────────
+                         HTTP/1.1-2         HTTP/3          Delta
+────────────────────────────────────────────────────────────────────
+DNS Lookup:               12.34ms         12.45ms        +0.11ms
+TCP Connect:              45.67ms             N/A            N/A
+TLS Handshake:            89.01ms             N/A            N/A
+QUIC Handshake:               N/A         78.23ms            N/A
+Manifest TTFB:            23.45ms         18.92ms        -4.53ms
+Segment Download:        156.78ms        142.34ms       -14.44ms
+Frame Detection:          34.56ms         34.12ms        -0.44ms
+────────────────────────────────────────────────────────────────────
+Total TTFF:              361.81ms        286.06ms       -75.75ms
+```
+
 ## How It Works
 
 ### Timing Methodology
@@ -146,6 +177,8 @@ vtrace uses Go's `net/http/httptrace` package for microsecond-accurate network t
 | `GotFirstResponseByte` | Time to First Byte (TTFB) from request start |
 
 These network phases are discrete intervals within a single request. DNS, TCP, and TLS happen sequentially during connection setup, while TTFB represents the total time from request initiation until the server begins responding.
+
+For HTTP/3 connections, vtrace uses `quic-go` and captures `GotConn` timing to measure QUIC handshake duration. The QUIC handshake replaces both TCP and TLS phases, as QUIC combines transport and encryption into a single handshake.
 
 For frame detection, vtrace pipes the downloaded segment data directly to `ffprobe` using stdin. The `-read_intervals %+#1` flag instructs ffprobe to read only until the first frame is detected, minimizing processing overhead.
 

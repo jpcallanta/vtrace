@@ -11,6 +11,7 @@ type Sample struct {
 	DNSLookup      time.Duration
 	TCPConnect     time.Duration
 	TLSHandshake   time.Duration
+	QUICHandshake  time.Duration
 	ManifestTTFB   time.Duration
 	ManifestTotal  time.Duration
 	SegmentTotal   time.Duration
@@ -20,9 +21,9 @@ type Sample struct {
 
 // Outlier represents a sample identified as an outlier
 type Outlier struct {
-	Index      int
-	Value      time.Duration
-	Deviation  float64
+	Index     int
+	Value     time.Duration
+	Deviation float64
 }
 
 // Stats holds computed statistics for a set of duration samples
@@ -245,6 +246,17 @@ func ExtractTLSHandshake(samples []Sample) []time.Duration {
 	return durations
 }
 
+// ExtractQUICHandshake extracts QUICHandshake from a slice of samples
+func ExtractQUICHandshake(samples []Sample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.QUICHandshake
+	}
+
+	return durations
+}
+
 // ExtractManifestTTFB extracts ManifestTTFB from a slice of samples
 func ExtractManifestTTFB(samples []Sample) []time.Duration {
 	durations := make([]time.Duration, len(samples))
@@ -273,6 +285,82 @@ func ExtractFrameDetection(samples []Sample) []time.Duration {
 
 	for i, s := range samples {
 		durations[i] = s.FrameDetection
+	}
+
+	return durations
+}
+
+// AssetSample holds timing data from a single TTFB measurement for any asset
+type AssetSample struct {
+	DNSLookup     time.Duration
+	TCPConnect    time.Duration
+	TLSHandshake  time.Duration
+	QUICHandshake time.Duration
+	TTFB          time.Duration
+	TotalTime     time.Duration
+}
+
+// ExtractAssetTTFB extracts TTFB from a slice of asset samples
+func ExtractAssetTTFB(samples []AssetSample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.TTFB
+	}
+
+	return durations
+}
+
+// ExtractAssetDNSLookup extracts DNSLookup from a slice of asset samples
+func ExtractAssetDNSLookup(samples []AssetSample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.DNSLookup
+	}
+
+	return durations
+}
+
+// ExtractAssetTCPConnect extracts TCPConnect from a slice of asset samples
+func ExtractAssetTCPConnect(samples []AssetSample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.TCPConnect
+	}
+
+	return durations
+}
+
+// ExtractAssetTLSHandshake extracts TLSHandshake from a slice of asset samples
+func ExtractAssetTLSHandshake(samples []AssetSample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.TLSHandshake
+	}
+
+	return durations
+}
+
+// ExtractAssetTotalTime extracts TotalTime from a slice of asset samples
+func ExtractAssetTotalTime(samples []AssetSample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.TotalTime
+	}
+
+	return durations
+}
+
+// ExtractAssetQUICHandshake extracts QUICHandshake from a slice of asset samples
+func ExtractAssetQUICHandshake(samples []AssetSample) []time.Duration {
+	durations := make([]time.Duration, len(samples))
+
+	for i, s := range samples {
+		durations[i] = s.QUICHandshake
 	}
 
 	return durations

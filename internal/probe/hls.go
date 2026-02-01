@@ -57,6 +57,38 @@ func FetchPlaylist(ctx context.Context, hlsURL string, client *http.Client) (*Pl
 	return result, nil
 }
 
+// FetchPlaylistHTTP3 fetches and parses an HLS playlist using HTTP/3
+func FetchPlaylistHTTP3(ctx context.Context, hlsURL string, client *http.Client) (*PlaylistResult, error) {
+	resp, trace, err := FetchWithTraceHTTP3(ctx, hlsURL, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch playlist: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for HTTP errors
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("playlist fetch returned status %d", resp.StatusCode)
+	}
+
+	playlist, listType, err := m3u8.DecodeFrom(resp.Body, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse playlist: %w", err)
+	}
+
+	result := &PlaylistResult{Trace: trace}
+
+	switch listType {
+	case m3u8.MASTER:
+		result.Master = playlist.(*m3u8.MasterPlaylist)
+	case m3u8.MEDIA:
+		result.Media = playlist.(*m3u8.MediaPlaylist)
+	default:
+		return nil, ErrInvalidPlaylist
+	}
+
+	return result, nil
+}
+
 // GetFirstVariantURL extracts the URL of the first variant from a master playlist
 func GetFirstVariantURL(master *m3u8.MasterPlaylist, baseURL string) (string, error) {
 	if master == nil || len(master.Variants) == 0 {
@@ -87,6 +119,27 @@ func GetFirstSegmentURL(media *m3u8.MediaPlaylist, baseURL string) (string, erro
 // DownloadSegment downloads a segment and returns the body as bytes
 func DownloadSegment(ctx context.Context, segmentURL string, client *http.Client) ([]byte, *Trace, error) {
 	resp, trace, err := FetchWithTrace(ctx, segmentURL, client)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to download segment: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for HTTP errors
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("segment download returned status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read segment data: %w", err)
+	}
+
+	return data, trace, nil
+}
+
+// DownloadSegmentHTTP3 downloads a segment using HTTP/3 and returns the body as bytes
+func DownloadSegmentHTTP3(ctx context.Context, segmentURL string, client *http.Client) ([]byte, *Trace, error) {
+	resp, trace, err := FetchWithTraceHTTP3(ctx, segmentURL, client)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to download segment: %w", err)
 	}
