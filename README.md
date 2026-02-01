@@ -1,6 +1,8 @@
 # vtrace
 
-A high-performance CLI tool that measures Time to First Frame (TTFF) for HLS streams. vtrace provides granular latency breakdowns to identify bottlenecks in network, manifest delivery, segment fetching, or video decoding.
+A high-performance CLI tool that measures Time to First Frame (TTFF) for HLS streams. 
+vtrace provides granular latency breakdowns to identify bottlenecks in network, 
+manifest delivery, segment fetching, or video decoding.
 
 ## Features
 
@@ -12,7 +14,7 @@ A high-performance CLI tool that measures Time to First Frame (TTFF) for HLS str
 
 ## Requirements
 
-- Go 1.21+
+- Go 1.24+
 - ffprobe (part of FFmpeg) installed and in PATH
 
 ### Installing ffprobe
@@ -94,13 +96,50 @@ Total TTFF:                   361.81ms
 
 ## How It Works
 
-1. Starts a global timer at request initiation
-2. Fetches the HLS manifest with network tracing (DNS, TCP, TLS, TTFB)
-3. Parses master playlist and follows to media playlist if needed
-4. Identifies the first video segment
-5. Downloads the segment with timing
-6. Pipes segment data to ffprobe to detect the first video frame
-7. Reports all timing breakdowns
+### Timing Methodology
+
+vtrace uses Go's `net/http/httptrace` package for microsecond-accurate network timing. The following callback hooks capture precise timestamps during each HTTP request:
+
+| Hook | Measures |
+|------|----------|
+| `DNSStart` / `DNSDone` | DNS resolution duration |
+| `ConnectStart` / `ConnectDone` | TCP connection establishment |
+| `TLSHandshakeStart` / `TLSHandshakeDone` | TLS negotiation time |
+| `GotFirstResponseByte` | Time to First Byte (TTFB) from request start |
+
+These network phases are discrete intervals within a single request. DNS, TCP, and TLS happen sequentially during connection setup, while TTFB represents the total time from request initiation until the server begins responding.
+
+For frame detection, vtrace pipes the downloaded segment data directly to `ffprobe` using stdin. The `-read_intervals %+#1` flag instructs ffprobe to read only until the first frame is detected, minimizing processing overhead.
+
+### TTFF Calculation
+
+The total Time to First Frame is calculated as:
+
+```
+Total TTFF = Manifest Fetch + Segment Download + Frame Detection
+```
+
+The breakdown metrics (DNS, TCP, TLS, TTFB) are sub-phases of the Manifest Fetch time and are reported for diagnostic purposes. They are not additive to the total—they represent where time is spent within the manifest request.
+
+### Measurement Flow
+
+1. Fetch the HLS manifest with full network tracing
+2. Parse the playlist (follow master → media playlist if needed)
+3. Identify and download the first video segment
+4. Pipe segment data to ffprobe to detect the first video frame
+5. Sum the elapsed times for total TTFF
+
+## Philosophy
+
+vtrace is built around several design principles:
+
+**User-centric measurement.** TTFF represents the real-world viewer experience—how quickly can a user see the first frame after clicking play? This is the metric that directly impacts perceived video startup latency.
+
+**Granular breakdown.** By exposing each phase (DNS, TCP, TLS, server response, download, decode), vtrace helps identify where the bottleneck lives. Is it the CDN edge? TLS negotiation? Decoder performance? The breakdown tells you where to focus optimization efforts.
+
+**Cold-start accuracy.** vtrace measures fresh connections without HTTP keep-alive or connection pooling. This simulates the initial viewer experience—the worst-case scenario that matters most for first impressions.
+
+**Minimal dependencies.** The tool relies only on `ffprobe` for frame detection, avoiding heavyweight video player dependencies or browser automation. This keeps vtrace fast, portable, and easy to integrate into CI/CD pipelines or monitoring systems.
 
 ## License
 
