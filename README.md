@@ -163,6 +163,148 @@ Frame Detection:          34.56ms         34.12ms        -0.44ms
 Total TTFF:              361.81ms        286.06ms       -75.75ms
 ```
 
+---
+
+# atrace
+
+A companion CLI tool that measures Time To First Byte (TTFB) for any HTTP asset.
+atrace provides granular latency breakdowns to identify bottlenecks in DNS resolution,
+TCP connection, TLS negotiation, or server response time.
+
+## Features
+
+- Microsecond-accurate network timing via `httptrace`
+- DNS, TCP, TLS, and TTFB breakdown
+- HTTP/1.1-2 vs HTTP/3 TTFB comparison mode
+- QUIC handshake timing for HTTP/3
+- Multi-sample mode with statistical analysis (mean, median, min, max, stddev)
+- IQR-based outlier detection with optional exclusion
+- Configurable delay between samples (fixed or randomized)
+- Clean, formatted output
+
+## Requirements
+
+- Go 1.24+
+
+No additional dependencies required (unlike vtrace, atrace does not require ffprobe).
+
+## Installation
+
+```bash
+go install codeberg.org/pwnderpants/vtrace/cmd/atrace@latest
+```
+
+Or build from source:
+
+```bash
+git clone https://codeberg.org/pwnderpants/vtrace.git
+cd vtrace
+go build -o atrace ./cmd/atrace
+```
+
+## Usage
+
+```bash
+atrace -url <URL> [flags]
+```
+
+### Flags
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--url` | `-u` | Asset URL (required) | - |
+| `--timeout` | `-t` | Request timeout | 30s |
+| `--verbose` | `-v` | Enable verbose output | false |
+| `--samples` | `-n` | Number of measurement iterations | 1 |
+| `--delay` | `-d` | Fixed delay between samples | 5s |
+| `--delay-random` | | Randomized delay range (e.g., 2s-8s) | - |
+| `--exclude-outliers` | | Exclude outliers from average calculation | false |
+| `--compare` | | Compare HTTP/1.1-2 vs HTTP/3 TTFB timings | false |
+
+### Examples
+
+Basic usage:
+```bash
+atrace -u https://example.com/asset.js
+```
+
+Multi-sample with statistics (10 samples, 5s delay):
+```bash
+atrace -u https://example.com/asset.js -n 10
+```
+
+Random delay between samples:
+```bash
+atrace -u https://example.com/asset.js -n 5 --delay-random 2s-8s
+```
+
+Exclude outliers from average:
+```bash
+atrace -u https://example.com/asset.js -n 10 --exclude-outliers
+```
+
+Custom timeout with verbose output:
+```bash
+atrace -u https://example.com/asset.js -t 60s -v
+```
+
+Compare HTTP/1.1-2 vs HTTP/3 performance:
+```bash
+atrace -u https://example.com/asset.js --compare
+```
+
+Multi-sample comparison:
+```bash
+atrace -u https://example.com/asset.js --compare -n 5
+```
+
+## Sample Output
+
+### Single Measurement
+
+```
+atrace results for: https://example.com/asset.js
+────────────────────────────────────────────────────
+DNS Lookup:                    12.34ms
+TCP Connect:                   45.67ms
+TLS Handshake:                 89.01ms
+────────────────────────────────────────────────────
+Total TTFB:                   147.02ms
+```
+
+### Multi-Sample Statistics
+
+```
+atrace results for: https://example.com/asset.js (5 samples)
+──────────────────────────────────────────────────────────────────────────────────
+                          Avg          Min          Max       Median       StdDev
+──────────────────────────────────────────────────────────────────────────────────
+DNS Lookup:            12.34ms       10.21ms       15.67ms       12.11ms        2.10ms
+TCP Connect:           45.67ms       42.11ms       49.02ms       45.89ms        2.80ms
+TLS Handshake:         89.01ms       85.23ms       94.56ms       88.45ms        3.50ms
+──────────────────────────────────────────────────────────────────────────────────
+Total TTFB:           147.02ms      137.55ms      159.25ms      146.45ms        8.40ms
+
+Outliers detected: sample 3 (159.25ms, +8.3%)
+```
+
+### HTTP/1.1-2 vs HTTP/3 Comparison
+
+```
+atrace comparison for: https://example.com/asset.js
+────────────────────────────────────────────────────────────────────
+                         HTTP/1.1-2         HTTP/3          Delta
+────────────────────────────────────────────────────────────────────
+DNS Lookup:               12.34ms         12.45ms        +0.11ms
+TCP Connect:              45.67ms             N/A            N/A
+TLS Handshake:            89.01ms             N/A            N/A
+QUIC Handshake:               N/A         78.23ms            N/A
+────────────────────────────────────────────────────────────────────
+Total TTFB:              147.02ms        90.68ms        -56.34ms
+```
+
+---
+
 ## How It Works
 
 ### Timing Methodology
