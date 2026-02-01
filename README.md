@@ -42,13 +42,13 @@ sudo dnf install ffmpeg
 ## Installation
 
 ```bash
-go install codeberg.org/pwnderpants/vtrace/cmd/vtrace@latest
+go install https://github.com/jpcallanta/vtrace/cmd/vtrace@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://codeberg.org/pwnderpants/vtrace.git
+git clone https://github.com/jpcallanta/pwnderpants/vtrace.git
 cd vtrace
 go build -o vtrace ./cmd/vtrace
 ```
@@ -191,13 +191,13 @@ No additional dependencies required (unlike vtrace, atrace does not require ffpr
 ## Installation
 
 ```bash
-go install codeberg.org/pwnderpants/vtrace/cmd/atrace@latest
+go install github.com/jpcallanta/vtrace/cmd/atrace@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://codeberg.org/pwnderpants/vtrace.git
+git clone https://github.com/jpcallanta/vtrace.git
 cd vtrace
 go build -o atrace ./cmd/atrace
 ```
