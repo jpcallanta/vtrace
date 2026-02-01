@@ -10,6 +10,9 @@ manifest delivery, segment fetching, or video decoding.
 - DNS, TCP, TLS, and TTFB breakdown
 - HLS manifest parsing (master and media playlists)
 - First frame detection via ffprobe
+- Multi-sample mode with statistical analysis (mean, median, min, max, stddev)
+- IQR-based outlier detection with optional exclusion
+- Configurable delay between samples (fixed or randomized)
 - Clean, formatted output
 
 ## Requirements
@@ -51,35 +54,51 @@ go build -o vtrace ./cmd/vtrace
 ## Usage
 
 ```bash
-vtrace -url <HLS_URL> [-timeout <duration>] [-verbose]
+vtrace -url <HLS_URL> [flags]
 ```
 
 ### Flags
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-url` | HLS stream URL (required) | - |
-| `-timeout` | Request timeout | 30s |
-| `-verbose` | Enable verbose output | false |
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--url` | `-u` | HLS stream URL (required) | - |
+| `--timeout` | `-t` | Request timeout | 30s |
+| `--verbose` | `-v` | Enable verbose output | false |
+| `--samples` | `-n` | Number of measurement iterations | 1 |
+| `--delay` | `-d` | Fixed delay between samples | 5s |
+| `--delay-random` | | Randomized delay range (e.g., 2s-8s) | - |
+| `--exclude-outliers` | | Exclude outliers from average calculation | false |
 
 ### Examples
 
 Basic usage:
 ```bash
-vtrace -url https://example.com/stream.m3u8
+vtrace -u https://example.com/stream.m3u8
 ```
 
-With verbose output:
+Multi-sample with statistics (10 samples, 5s delay):
 ```bash
-vtrace -url https://example.com/stream.m3u8 -verbose
+vtrace -u https://example.com/stream.m3u8 -n 10
 ```
 
-Custom timeout:
+Random delay between samples:
 ```bash
-vtrace -url https://example.com/stream.m3u8 -timeout 60s
+vtrace -u https://example.com/stream.m3u8 -n 5 --delay-random 2s-8s
+```
+
+Exclude outliers from average:
+```bash
+vtrace -u https://example.com/stream.m3u8 -n 10 --exclude-outliers
+```
+
+Custom timeout with verbose output:
+```bash
+vtrace -u https://example.com/stream.m3u8 -t 60s -v
 ```
 
 ## Sample Output
+
+### Single Measurement
 
 ```
 vtrace results for: https://example.com/stream.m3u8
@@ -92,6 +111,25 @@ Segment Download:             156.78ms
 Frame Detection:               34.56ms
 ────────────────────────────────────────────────────
 Total TTFF:                   361.81ms
+```
+
+### Multi-Sample Statistics
+
+```
+vtrace results for: https://example.com/stream.m3u8 (5 samples)
+──────────────────────────────────────────────────────────────────────────────────
+                          Avg          Min          Max       Median       StdDev
+──────────────────────────────────────────────────────────────────────────────────
+DNS Lookup:            12.34ms       10.21ms       15.67ms       12.11ms        2.10ms
+TCP Connect:           45.67ms       42.11ms       49.02ms       45.89ms        2.80ms
+TLS Handshake:         89.01ms       85.23ms       94.56ms       88.45ms        3.50ms
+Manifest TTFB:         23.45ms       21.02ms       26.78ms       23.12ms        2.10ms
+Segment Download:     156.78ms      148.34ms      168.92ms      155.67ms        7.80ms
+Frame Detection:       34.56ms       31.23ms       38.90ms       34.12ms        2.90ms
+──────────────────────────────────────────────────────────────────────────────────
+Total TTFF:           361.81ms      340.12ms      392.45ms      359.36ms       18.30ms
+
+Outliers detected: sample 3 (392.45ms, +8.5%)
 ```
 
 ## How It Works
@@ -128,6 +166,37 @@ The breakdown metrics (DNS, TCP, TLS, TTFB) are sub-phases of the Manifest Fetch
 3. Identify and download the first video segment
 4. Pipe segment data to ffprobe to detect the first video frame
 5. Sum the elapsed times for total TTFF
+
+### Multi-Sample Mode
+
+When running with `-n` greater than 1, vtrace collects multiple measurements and computes aggregate statistics.
+
+**Statistics reported:**
+
+| Metric | Description |
+|--------|-------------|
+| Avg | Arithmetic mean of all samples |
+| Min | Fastest measurement |
+| Max | Slowest measurement |
+| Median | Middle value (less sensitive to outliers than mean) |
+| StdDev | Standard deviation (sample-based, n-1 denominator) |
+
+**Outlier detection:**
+
+vtrace uses the Interquartile Range (IQR) method to identify outliers:
+
+1. Calculate Q1 (25th percentile) and Q3 (75th percentile)
+2. Compute IQR = Q3 - Q1
+3. Flag samples below Q1 - 1.5×IQR or above Q3 + 1.5×IQR as outliers
+
+Outliers are reported with their deviation from the mean as a percentage. When `--exclude-outliers` is set, flagged samples are excluded from all average calculations and the header shows "Avg*" to indicate filtered results.
+
+**Delay options:**
+
+- `--delay` (default 5s): Fixed wait time between samples. Helps avoid rate limiting and allows CDN cache state to normalize.
+- `--delay-random`: Randomized delay within a range (e.g., `2s-8s`). Useful for simulating more realistic access patterns and avoiding cache-friendly timing.
+
+These flags are mutually exclusive. If `--delay-random` is provided, it takes precedence.
 
 ## Philosophy
 
